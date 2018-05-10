@@ -1,0 +1,320 @@
+---
+title: "Portfolio 1"
+author: "Emily H. K."
+date: "9 maj 2018"
+output: html_document
+---
+
+```{r}
+
+setwd("C:/Users/emily/Desktop/Uni/Rstudio/R - Datascripts/Comp. Modelling/Portfolio-1/2018 - Eye tracking")
+#install.packages("jpeg")
+
+library(Metrics);library(MuMIn);library(lme4);library(Metrics);library(modelr);library(ModelMetrics);library(lmerTest);library(grid);library(caret);library(ggplot2);library(tidyverse)
+library(jpeg)
+
+``` 
+
+
+#Visual Search
+```{r}
+FixationsV2 = read.csv("FixationsV2.csv")
+
+#Cross-validating
+VSdata = subset(FixationsV2, FixationsV2$Task == "VisualSearch")
+
+VSdata$ParticipantID = as.character(VSdata$ParticipantID)
+VSdata$ParticipantID = as.factor(VSdata$ParticipantID)
+VSdata$foldsID = as.numeric(VSdata$ParticipantID)
+
+folds = createFolds(unique(VSdata$foldsID), k = 3)
+
+
+int_rmse_train = NULL
+int_rmse_test = NULL
+n = 1
+
+for(i in folds){
+  print(i)
+  train = subset(VSdata, !(VSdata$foldsID %in% i))
+  test = subset(VSdata, VSdata$foldsID %in%i)
+
+  newmodel = lmer(Duration ~ 1 + SearchType * Trial + (1 + SearchType * Trial | foldsID), data = train)
+  
+  newpred = predict(newmodel, newdata = test, allow.new.levels = TRUE)
+  int_rmse_test[n] = Metrics::rmse(newpred, test$Duration)
+  int_rmse_train[n] = Metrics::rmse(train$Duration, fitted(newmodel))
+  
+  n = n+1
+}
+
+mean(int_rmse_test) #206,617
+mean(int_rmse_train) #192,338
+
+VSm1 = data.frame(int_rmse_test, int_rmse_train)
+summary(newmodel)
+
+STT_rmse_train = NULL
+STT_rmse_test = NULL
+n = 1
+
+for(i in folds){
+  print(i)
+  train = subset(VSdata, !(VSdata$foldsID %in% i))
+  test = subset(VSdata, VSdata$foldsID %in%i)
+
+  newmodel = lmer(Duration ~ 1 + SearchType + Trial + (1 + SearchType + Trial | foldsID), data = train)
+  
+  newpred = predict(newmodel, newdata = test, allow.new.levels = TRUE)
+  STT_rmse_test[n] = Metrics::rmse(newpred, test$Duration)
+  STT_rmse_train[n] = Metrics::rmse(train$Duration, fitted(newmodel))
+  
+  n = n+1
+}
+
+mean(STT_rmse_test)#217,419
+mean(STT_rmse_train)#192,765
+
+
+
+ST_rmse_train = NULL
+ST_rmse_test = NULL
+n = 1
+
+for(i in folds){
+  print(i)
+  train = subset(VSdata, !(VSdata$foldsID %in% i))
+  test = subset(VSdata, VSdata$foldsID %in%i)
+
+  newmodel = lmer(Duration ~ 1 + SearchType + (1 + SearchType | foldsID), data = train)
+  
+  newpred = predict(newmodel, newdata = test, allow.new.levels = TRUE)
+  ST_rmse_test[n] = Metrics::rmse(newpred, test$Duration)
+  ST_rmse_train[n] = Metrics::rmse(train$Duration, fitted(newmodel))
+  
+  n = n+1
+}
+stat.desc(ST_rmse_test)#213,351
+mean(ST_rmse_train)#193,198
+
+
+
+#Best performing model
+bestmodel = lmer(Duration ~ 1 + SearchType * Trial + (1 + SearchType * Trial | foldsID), data = VSdata)
+summary(bestmodel)
+
+
+```
+
+#Social Engagement
+```{r}
+#FixationsV2 data used becuase model failed to converge with SamplesV2 data
+
+#Cross-validating
+SEdata = subset(FixationsV2, FixationsV2$Task == "SocialEngagement")
+
+SEdata$ParticipantID = as.character(SEdata$ParticipantID)
+SEdata$ParticipantID = as.factor(SEdata$ParticipantID)
+SEdata$foldsID = as.numeric(SEdata$ParticipantID)
+
+
+folds = createFolds(unique(SEdata$foldsID), k = 3)
+
+
+pint_rmse_train = NULL
+pint_rmse_test = NULL
+n = 1
+
+#complete.cases - this is done so NAs are not removed
+for(i in folds){
+  print(i)
+  train = subset(SEdata, !(SEdata$foldsID %in% i))
+  train=train[complete.cases(train[,c("PupilSize","Directionality","foldsID")]),] 
+  
+  test = subset(SEdata, SEdata$foldsID %in%i)
+  test=test[complete.cases(test[,c("PupilSize","Directionality","foldsID")]),]
+
+  newmodel = lmer(PupilSize ~ 1 + Ostension * Directionality + (1 + Ostension * Directionality | foldsID), data = train)
+  
+  newpred = predict(newmodel, newdata = test, allow.new.levels = TRUE)
+  pint_rmse_test[n] = Metrics::rmse(newpred, test$PupilSize)
+  pint_rmse_train[n] = Metrics::rmse(train$PupilSize, fitted(newmodel))
+  
+  n = n+1
+}
+
+mean(pint_rmse_test)#611,9682
+mean(pint_rmse_train)#192,6834
+
+
+pOS_rmse_train = NULL
+pOS_rmse_test = NULL
+n = 1
+
+for(i in folds){
+  print(i)
+  train = subset(SEdata, !(SEdata$foldsID %in% i))
+  train=train[complete.cases(train[,c("PupilSize","Directionality","foldsID")]),] #this is done so NAs are not removed
+  
+  test = subset(SEdata, SEdata$foldsID %in%i)
+  test=test[complete.cases(test[,c("PupilSize","Directionality","foldsID")]),]
+
+  newmodel = lmer(PupilSize ~ 1 + Ostension + Directionality + (1 + Ostension + Directionality | foldsID), data = train)
+  
+  newpred = predict(newmodel, newdata = test, allow.new.levels = TRUE)
+  pOS_rmse_test[n] = Metrics::rmse(newpred, test$PupilSize )
+  pOS_rmse_train[n] = Metrics::rmse(train$PupilSize, fitted(newmodel) )
+  
+  n = n+1
+}
+
+mean(pOS_rmse_test)#609,6236
+mean(pOS_rmse_train)#205,6544
+
+
+pO_rmse_train = NULL
+pO_rmse_test = NULL
+n = 1
+
+for(i in folds){
+  print(i)
+  train = subset(SEdata, !(SEdata$foldsID %in% i))
+  train=train[complete.cases(train[,c("PupilSize","Directionality","foldsID")]),] #this is done so NAs are not removed
+  
+  test = subset(SEdata, SEdata$foldsID %in%i)
+  test=test[complete.cases(test[,c("PupilSize","Directionality","foldsID")]),]
+
+  newmodel = lmer(PupilSize ~ 1 + Ostension + (1 + Ostension | foldsID), data = train)
+  
+  newpred = predict(newmodel, newdata = test, allow.new.levels = TRUE)
+  pO_rmse_test[n] = Metrics::rmse(newpred, test$PupilSize )
+  pO_rmse_train[n] = Metrics::rmse(train$PupilSize, fitted(newmodel) )
+  
+  n = n+1
+}
+
+mean(pO_rmse_test)#611,3937
+mean(pO_rmse_train)#227,9495
+
+
+pD_rmse_train = NULL
+pD_rmse_test = NULL
+n = 1
+
+for(i in folds){
+  print(i)
+  train = subset(SEdata, !(SEdata$foldsID %in% i))
+  train=train[complete.cases(train[,c("PupilSize","Directionality","foldsID")]),] #this is done so NAs are not removed
+  
+  test = subset(SEdata, SEdata$foldsID %in%i)
+  test=test[complete.cases(test[,c("PupilSize","Directionality","foldsID")]),]
+  
+  newmodel = lmer(PupilSize ~ 1 + Directionality + (1 + Directionality | foldsID), data = train)
+  
+  newpred = predict(newmodel, newdata = test, allow.new.levels = TRUE)
+  pD_rmse_test[n] = Metrics::rmse(newpred, test$PupilSize )
+  train$Preds=fitted(newmodel)
+  pD_rmse_train[n] = Metrics::rmse(train$PupilSize, fitted(newmodel))
+  
+  n = n+1
+}
+
+mean(pD_rmse_test)#610,2785
+mean(pD_rmse_train)#211,9892
+
+
+
+#Best performing model
+pbestmodel1 = lmer(PupilSize ~ 1 + Ostension + Directionality + (1 + Ostension * Directionality | foldsID), data = SEdata)  
+
+
+
+```
+
+#Plots____________________________________________________________
+
+#Visual Search Plots
+```{r}
+
+jet.colors = colorRampPalette(c("#00007F", "blue", "#007FFF", "cyan", "#7FFF7F", "yellow", "#FF7F00", "red", "#7F0000"))
+
+# background image 
+img = readJPEG("eyetrackingscripts/foraging/ng064ws.jpg")
+g = rasterGrob(img, interpolate = TRUE)
+
+
+
+# Scanpaths for count task 
+x = subset(FixationsV2, Task == 'VisualSearch' & ParticipantID=='5_1_m2' & Trial==4)
+x = x[order(x$Fixation),]
+ggplot(x, aes(x=PositionX, y= 1081 - PositionY, label=Fixation)) +
+  annotation_custom(g, xmin=-Inf, xmax=Inf, ymin=-0, ymax=1080)  + # adds the picture
+geom_point(size = sqrt(x$Duration), alpha = 0.5, color = "magenta") +
+geom_path(size = 1, alpha = 0.3, color = "yellow") +
+geom_text(aes(label = Fixation, size = 5)) 
+
+#Density for count task
+ggplot(subset(FixationsV2, Task=='VisualSearch' & ParticipantID=='5_1_m2' & Trial==4), aes(x = PositionX, y = 1081-PositionY)) +
+  xlim(0,1920) + #match with resolution of picture
+  ylim(0, 1080) +
+  annotation_custom(g, xmin=-Inf, xmax=Inf, ymin=-0, ymax=1080) +#specifies how big the picture should be
+  #xmin=-Inf, xmax=Inf, ymin=-Inf, ymax=Inf) +
+  stat_density2d(geom="raster", aes(fill=..density.., alpha=sqrt(sqrt(..density..))), contour=FALSE, n=1000) + 
+  scale_alpha(range = c(0.1, 0.6)) + scale_fill_gradientn(colours = jet.colors(10), trans = "sqrt")
+
+
+
+# Scanpaths for search task (same image)
+x = subset(FixationsV2, Task == 'VisualSearch' & ParticipantID=='4_2_F1' & Trial==4)
+x = x[order(x$Fixation),]
+ggplot(x, aes(x=PositionX, y= 1081 - PositionY, label=Fixation)) +
+  annotation_custom(g, xmin=-Inf, xmax=Inf, ymin=-0, ymax=1080)  + # adds the picture
+geom_point(size = sqrt(x$Duration), alpha = 0.5, color = "magenta") +
+geom_path(size = 1, alpha = 0.3, color = "yellow") +
+geom_text(aes(label = Fixation, size = 5))
+
+
+#Density for search task
+ggplot(subset(FixationsV2, Task=='VisualSearch' & ParticipantID=='4_2_F1' & Trial==4), aes(x = PositionX, y = 1081-PositionY)) +
+  xlim(0,1920) + #match with resolution of picture
+  ylim(0, 1080) +
+  annotation_custom(g, xmin=-Inf, xmax=Inf, ymin=-0, ymax=1080) +#specifies how big the picture should be
+  #xmin=-Inf, xmax=Inf, ymin=-Inf, ymax=Inf) +
+  stat_density2d(geom="raster", aes(fill=..density.., alpha=sqrt(sqrt(..density..))), contour=FALSE, n=1000) + 
+  scale_alpha(range = c(0.1, 0.6)) + scale_fill_gradientn(colours = jet.colors(10), trans = "sqrt")
+
+
+
+
+#boxplot
+ggplot(VSdata, aes(SearchType, Duration, fill = SearchType)) + 
+  geom_boxplot() + 
+  scale_y_continuous(limits = quantile(VSdata$Duration, c(0, 0.99))) +
+  theme_minimal() 
+ 
+
+
+
+```
+
+
+#Social Engagement Plots
+```{r}
+
+#growth plot
+SamplesV2 = read.csv("SamplesV2.csv")
+
+x = subset(SamplesV2, Task == "SocialEngagement") 
+
+ggplot(x, aes(x$TrialTime, x$PupilSize, colour = x$Ostension)) + 
+  geom_smooth() + 
+  facet_grid(. ~ x$Directionality) + #makes you group the data by another variable 
+  theme_minimal() +
+  xlab("Trial Time (ms)") + ylab("Pupil Size (px)") + labs(colour = "Ostension")
+
+
+
+
+```
+
+
